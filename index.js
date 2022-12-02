@@ -1,13 +1,16 @@
 import * as dotenv from 'dotenv' // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
 dotenv.config()
 
-import { REST, Routes, Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, OverwriteType } from "discord.js";
+import { REST, Routes, Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, OverwriteType, escapeMarkdown } from "discord.js";
 
 import { SlashCommandBuilder } from "@discordjs/builders";
 
 import { resolveColor } from "discord.js";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildEmojisAndStickers] });
+const client = new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildEmojisAndStickers],
+    allowedMentions: { parse: [] }
+});
 
 const specialRoles = process.env.SPECIAL_ROLES.split(",");
 
@@ -115,131 +118,21 @@ client.on('interactionCreate', async interaction => {
 
     switch (fullCommand) {
         case "faction create":
-            if(await memberIsFounder(interaction.guild, interaction.member)) {
-                interaction.reply({ content: "You are already the founder of a faction.", ephemeral: true });
-                return;
-            }
-
-            if(await memberIsInAFaction(interaction.guild, interaction.member)) {
-                interaction.reply({ content: "You are already in a faction.", ephemeral: true });
-                return;
-            }
-
-            const factionName = options.getString("name");
-            if(!nameValid(factionName)) {
-                await interaction.reply({ content: "Invalid / missing faction name", ephemeral: true });
-                return;
-            }
-
-            const others = (await getFactionRoles(interaction.guild)).map(role => role.name);
-            console.log(factionName, others);
-
-            if (others.find(role => role.trim().toLowerCase() === factionName.trim().toLowerCase())) {
-                await interaction.reply({ content: "A faction with that name already exists!", ephemeral: true });
-                return;
-            }
-
-            const color = options.getString("color");
-
-            try {
-                resolveColor(color);
-            } catch (e) {
-                await interaction.reply({ content: "Invalid color!", ephemeral: true });
-                return;
-            }
-
-            let role;
-            try{
-                role = await interaction.guild.roles.create({
-                    name: factionName,
-                    color,
-                    reason: "Faction created by " + interaction.user.tag
-                });
-            } catch (e) {
-                console.error(e);
-                await interaction.reply({ content: "Error creating role!", ephemeral: true });
-                return;
-            }
-
-            // make a channel category
-            const category = await interaction.guild.channels.create({
-                type: ChannelType.GuildCategory,
-                reason: "Faction created by " + interaction.user.tag,
-                name: factionName,
-                permissionOverwrites: [
-                    {
-                        id: role.id,
-                        allow: [PermissionFlagsBits.ViewChannel]
-                    },
-                    {
-                        id: interaction.guild.roles.everyone,
-                        deny: [PermissionFlagsBits.ViewChannel]
-                    }
-                ]
-            });
-            console.log(category.id);
-
-            let adminChannel;
-            try {
-                const textChannel = await interaction.guild.channels.create({
-                    type: ChannelType.GuildText,
-                    parent: category,
-                    reason: "Faction created by " + interaction.user.tag,
-                    name: nameToChannelName(factionName),
-                });
-
-                adminChannel = await interaction.guild.channels.create({
-                    type: ChannelType.GuildText,
-                    parent: category,
-                    reason: "Faction created by " + interaction.user.tag,
-                    name: nameToChannelName(factionName) + "-admin",
-                    permissionOverwrites: [
-                        {
-                            id: interaction.guild.roles.everyone,
-                            deny: [PermissionFlagsBits.ViewChannel],
-                            type: OverwriteType.Role
-                        }
-                    ]
-                });
-
-                const voiceChannel = await interaction.guild.channels.create({
-                    type: ChannelType.GuildVoice,
-                    parent: category,
-                    reason: "Faction created by " + interaction.user.tag,
-                    name: nameToChannelName(factionName) + "-vc",
-                });
-            } catch (e) {
-                console.error(e);
-                await interaction.reply({ content: "Error creating channels!", ephemeral: true });
-                return;
-            }
-
-            try{
-                await makeMemberFactionMember(interaction.guild, interaction.member, role);
-                await makeMemberFactionAdmin(interaction.guild, interaction.member, adminChannel);
-                await makeMemberAFounder(interaction.guild, interaction.member);
-            } catch (e) {
-                console.error(e);
-                await interaction.reply({ content: "Error assigning permissions!", ephemeral: true });
-                return;
-            }
-
-            break;
-
+            return await commandFactionCreate(interaction);
         case "faction admins add":
-            return commandFactionAdminsUpdate(interaction, true);
+            return await commandFactionAdminsUpdate(interaction, true);
         case "faction admins remove":
-            return commandFactionAdminsUpdate(interaction, false);
+            return await commandFactionAdminsUpdate(interaction, false);
         case "faction join":
-            break;
+            return await commandFactionJoin(interaction);
         case "faction delete":
-            break;
+            return await commandFactionDelete(interaction);
         case "alliance create":
-            break;
+            return await commandAllianceCreate(interaction);
         case "alliance delete":
-            break;
+            return await commandAllianceDelete(interaction);
         case "alliance join":
-            break;
+            return await commandAllianceJoin(interaction);
         default:
             console.log("Unknown command " + fullCommand);
             await interaction.reply({ content: "Unknown command!", ephemeral: true });
@@ -251,6 +144,119 @@ client.on('interactionCreate', async interaction => {
 
 
 // command
+
+async function commandFactionCreate(interaction) {
+    const options = interaction.options;
+
+    if(await memberIsFounder(interaction.guild, interaction.member)) {
+        interaction.reply({ content: "You are already the founder of a faction.", ephemeral: true });
+        return;
+    }
+
+    if(await memberIsInAFaction(interaction.guild, interaction.member)) {
+        interaction.reply({ content: "You are already in a faction.", ephemeral: true });
+        return;
+    }
+
+    const factionName = options.getString("name");
+    if(!nameValid(factionName)) {
+        await interaction.reply({ content: "Invalid / missing faction name", ephemeral: true });
+        return;
+    }
+
+    const others = (await getFactionRoles(interaction.guild)).map(role => role.name);
+    console.log(factionName, others);
+
+    if (others.find(role => role.trim().toLowerCase() === factionName.trim().toLowerCase())) {
+        await interaction.reply({ content: "A faction with that name already exists!", ephemeral: true });
+        return;
+    }
+
+    const color = options.getString("color");
+
+    try {
+        resolveColor(color);
+    } catch (e) {
+        await interaction.reply({ content: "Invalid color!", ephemeral: true });
+        return;
+    }
+
+    let role;
+    try{
+        role = await interaction.guild.roles.create({
+            name: factionName,
+            color,
+            reason: "Faction created by " + interaction.user.tag
+        });
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "Error creating role!", ephemeral: true });
+        return;
+    }
+
+    // make a channel category
+    const category = await interaction.guild.channels.create({
+        type: ChannelType.GuildCategory,
+        reason: "Faction created by " + interaction.user.tag,
+        name: factionName,
+        permissionOverwrites: [
+            {
+                id: role.id,
+                allow: [PermissionFlagsBits.ViewChannel]
+            },
+            {
+                id: interaction.guild.roles.everyone,
+                deny: [PermissionFlagsBits.ViewChannel]
+            }
+        ]
+    });
+    console.log(category.id);
+
+    let adminChannel;
+    try {
+        const textChannel = await interaction.guild.channels.create({
+            type: ChannelType.GuildText,
+            parent: category,
+            reason: "Faction created by " + interaction.user.tag,
+            name: nameToChannelName(factionName),
+        });
+
+        adminChannel = await interaction.guild.channels.create({
+            type: ChannelType.GuildText,
+            parent: category,
+            reason: "Faction created by " + interaction.user.tag,
+            name: nameToChannelName(factionName) + "-admin",
+            permissionOverwrites: [
+                {
+                    id: interaction.guild.roles.everyone,
+                    deny: [PermissionFlagsBits.ViewChannel],
+                    type: OverwriteType.Role
+                }
+            ]
+        });
+
+        const voiceChannel = await interaction.guild.channels.create({
+            type: ChannelType.GuildVoice,
+            parent: category,
+            reason: "Faction created by " + interaction.user.tag,
+            name: nameToChannelName(factionName) + "-vc",
+        });
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "Error creating channels!", ephemeral: true });
+        return;
+    }
+
+    try{
+        await makeMemberFactionMember(interaction.guild, interaction.member, role);
+        await makeMemberFactionAdmin(interaction.guild, interaction.member, adminChannel);
+        await makeMemberAFounder(interaction.guild, interaction.member);
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "Error assigning permissions!", ephemeral: true });
+    }
+
+}
 
 async function commandFactionAdminsUpdate(interaction, add){
     const adminMember = interaction.member;
@@ -309,6 +315,66 @@ async function commandFactionAdminsUpdate(interaction, add){
     await interaction.reply(`Successfully ${add ? "added" : "removed"} ${targetMember.displayName} as a faction admin.`);
 }
 
+async function commandFactionJoin(interaction){
+    const factionName = interaction.options.getString("name");
+    if(!nameValid(factionName)) {
+        await interaction.reply({ content: "Invalid / missing faction name", ephemeral: true });
+        return;
+    }
+
+    let factionRole;
+    try{
+        factionRole = await getFactionRole(interaction.guild, factionName);
+    } catch (e) {
+        await interaction.reply({ content: "That faction does not exist!", ephemeral: true });
+        return;
+    }
+    if(!factionRole) {
+        await interaction.reply({ content: "That faction does not exist.", ephemeral: true });
+        return;
+    }
+
+    if(await memberIsFounder(interaction.guild, interaction.member)) {
+        await interaction.reply({ content: "You are already the founder of a faction.", ephemeral: true });
+        return;
+    }
+
+    if(await memberIsInAFaction(interaction.guild, interaction.member)) {
+        await interaction.reply({ content: "You are already in a faction.", ephemeral: true });
+        return;
+    }
+
+    let adminChannel;
+    try {
+        adminChannel = await getAdminChannel(interaction.guild, factionName);
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "Error getting admin channel!", ephemeral: true });
+        return;
+    }
+
+    let politicsChannel;
+    try {
+        politicsChannel = await getPoliticsChannel(interaction.guild);
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({ content: "Error getting politics channel!", ephemeral: true });
+        return;
+    }
+
+    const sent = await politicsChannel.send(escapeMarkdown(`${interaction.member.displayName} (${interaction.member.user.tag}) wants to join ${factionName}!\nIf you are an admin of ${factionName}, click the checkmark to accept.`));
+    await sent.react("✅");
+    await interaction.reply(`Sent join request in <#${politicsChannel.id}>`);
+    sent.createReactionCollector({}).on("collect", async (reaction, user) => {
+        const isAdmin = await memberIsFactionAdmin(interaction.guild, user, adminChannel);
+        if(!isAdmin) return;
+        if(reaction.emoji.name === "✅") {
+            await makeMemberFactionMember(interaction.guild, interaction.member, factionRole);
+            await sent.delete();
+            await politicsChannel.send(escapeMarkdown(`${interaction.member.displayName} (${interaction.member.user.tag}) has joined ${factionName}!`));
+        }
+    });
+}
 
 
 
@@ -325,6 +391,10 @@ async function memberIsInAFaction(guild, member) {
 async function memberIsFounder(guild, member) {
     const role = await getFounderRole(guild);
     return member.roles.cache.has(role.id);
+}
+
+async function memberIsFactionAdmin(guild, member, adminChannel) {
+    return adminChannel.permissionsFor(member).has(PermissionFlagsBits.ViewChannel);
 }
 
 async function memberIsFounderOfFaction(guild, member, faction) {
@@ -348,12 +418,23 @@ async function makeMemberNotFactionAdmin(guild, member, adminChannel) {
     });
 }
 
+async function makeMemberAFounder(guild, member) {
+    const founderRole = await getFounderRole(guild);
+    console.log("adding role", founderRole.id);
+    await member.roles.add(founderRole);
+}
+
 async function getFounderRole(guild) {
     const founderRole = await guild.roles.fetch(process.env.FOUNDER_ROLE);
     if(!founderRole){
         throw new Error("Founder role not found!");
     }
     return founderRole;
+}
+
+async function getFactionRole(guild, name){
+    const roles = await getFactionRoles(guild);
+    return roles.find(role => role.name === name);
 }
 
 async function getMemberFactionRole(guild, member) {
@@ -370,10 +451,9 @@ async function getAdminChannel(guild, factionName) {
     return channels.find(channel => channel.name === nameToChannelName(factionName) + "-admin");
 }
 
-async function makeMemberAFounder(guild, member) {
-    const founderRole = await getFounderRole(guild);
-    console.log("adding role", founderRole.id);
-    await member.roles.add(founderRole);
+async function getPoliticsChannel(guild) {
+    const id = process.env.POLITICS_CHANNEL;
+    return await guild.channels.fetch(id);
 }
 
 await client.login(process.env.DISCORD_TOKEN);
