@@ -1,0 +1,26 @@
+{
+  "name": "vanityfactions",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "debug": "node --inspect index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pmaxhogan/vanityfactions.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pmaxhogan/vanityfactions/issues"
+  },
+  "homepage": "https://github.com/pmaxhogan/vanityfactions#readme",
+  "dependencies": {
+    "@discordjs/builders": "^1.4.0",
+    "discord.js": "^14.7.1",
+    "dotenv": "^16.0.3"
+  },
+  "type": "module"
+}
