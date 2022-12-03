@@ -1,6 +1,6 @@
 # TODO:
 - [x] add /faction kick, /alliance kick
-- [ ] add /faction list, /faction list <faction>, /alliance list
+- [x] add /faction list, /faction list <faction>, /alliance list
 - [ ] go and comment the code
 - [ ] make all replies not ephemeral
 - [ ] fix politics channel

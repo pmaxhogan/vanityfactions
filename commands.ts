@@ -67,6 +67,11 @@ export default [
 
         .addSubcommand((subcommand) =>
             subcommand.setName("leave").setDescription("Leave your faction")
+        )
+
+        .addSubcommand((subcommand) =>
+            subcommand.setName("list").setDescription("List factions")
+                .addRoleOption((option) => option.setName("name").setDescription("The name of the faction"))
         ).toJSON(),
 
     new SlashCommandBuilder()
@@ -85,4 +90,6 @@ export default [
                 .addStringOption((option) => option.setName("name").setDescription("The alliance name").setRequired(true))
                 .addStringOption((option) => option.setName("faction").setDescription("The faction name").setRequired(true))
         )
+        .addSubcommand((subcommand) => subcommand.setName("list").setDescription("List alliances"))
+        .toJSON()
 ];

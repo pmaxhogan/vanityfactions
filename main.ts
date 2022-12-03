@@ -5,7 +5,7 @@ import {
     CategoryChannel,
     ChannelType,
     ChatInputCommandInteraction,
-    Client,
+    Client, EmbedBuilder,
     escapeMarkdown,
     GatewayIntentBits,
     Guild,
@@ -103,6 +103,8 @@ client.on('interactionCreate', async interaction => {
             return await commandFactionSetInvite(interaction);
         case "faction kick":
             return await commandFactionKick(interaction);
+        case "faction list":
+            return await commandFactionInfo(interaction);
 
         case "alliance create":
             return await commandAllianceCreate(interaction);
@@ -114,6 +116,8 @@ client.on('interactionCreate', async interaction => {
             return await commandAllianceJoin(interaction);
         case "alliance kick":
             return await commandAllianceKick(interaction);
+        case "alliance list":
+            return await commandAllianceList(interaction);
         default:
             console.log("Unknown command " + fullCommand);
             await interaction.reply({content: "Unknown command!", ephemeral: true});
@@ -440,6 +444,54 @@ async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
     await interaction.reply(`Successfully left faction ${factionRole.name}!`);
 }
 
+async function commandFactionInfo(interaction: ChatInputCommandInteraction){
+    const name = interaction.options.getRole("name")?.name;
+    if(name){
+        const role = await getFactionRole(interaction.guild, name);
+        if(!role){
+            await interaction.reply({content: "That faction does not exist!", ephemeral: true});
+            return;
+        }
+        const faction = config.factions.find(faction => faction.role === role.id);
+        if(!faction){
+            await interaction.reply({content: "Error getting faction object!", ephemeral: true});
+            return;
+        }
+
+        const embed = new EmbedBuilder();
+        embed.setTitle("Factions");
+        embed.setDescription(`${role.name}: ${role.members.size} member${role.members.size !== 1 ? "s" : ""}, ${faction.isInviteOnly ? "request to join" : "open invite"}`);
+        embed.setColor("Blue");
+        const fields = [];
+        const alliancesRoles = await getAllianceRoles(interaction.guild);
+        const factionRoles = await getFactionRoles(interaction.guild);
+        const ourAlliances = config.alliances.filter(alliance => alliance.factions.includes(role.id));
+        for(const role of alliancesRoles){
+            const found = ourAlliances.find(alliance => alliance.role === role.id);
+            if(found) {
+                fields.push({name: "Alliance: " + role.name, value: " with " + found.factions.map(faction => factionRoles.find(role => role.id === faction).name).join(", ")});
+            }
+        }
+        embed.addFields(fields);
+
+        await interaction.reply({embeds: [embed]});
+    }else{
+        const roles = await getFactionRoles(interaction.guild);
+        const embed = new EmbedBuilder();
+        embed.setTitle("Factions");
+        embed.setDescription("Use /faction info <name> to get more info about a faction.");
+        embed.setColor("Blue");
+        const fields = [];
+        for(const role of roles){
+            const faction = config.factions.find(faction => faction.role === role.id);
+            if(!faction) continue;
+            fields.push({name: role.name, value: `${role.members.size} member${role.members.size !== 1 ? "s" : ""}, ${faction.isInviteOnly ? "request to join" : "open invite"}`});
+        }
+        embed.addFields(fields);
+        await interaction.reply({embeds: [embed]});
+    }
+}
+
 async function commandFactionKick(interaction: ChatInputCommandInteraction){
     const resp = await factionAdminOnlyCommand(interaction);
     if(!resp) return;
@@ -715,6 +767,24 @@ async function commandAllianceKick(interaction: ChatInputCommandInteraction){
     }
 
     await interaction.reply(`Kicked faction ${factionRole.name} from alliance ${allianceRole.name}!`);
+}
+
+async function commandAllianceList(interaction: ChatInputCommandInteraction){
+    const alliances = await getAllianceRoles(interaction.guild);
+
+    const factionRoles = await getFactionRoles(interaction.guild);
+    const embed = new EmbedBuilder();
+    embed.setTitle("Alliances");
+    embed.setColor("Blue");
+    const fields = [];
+    for(const allianceRole of alliances){
+        const allianceObj:alliance = config.alliances.find(allianceObj => allianceObj.role === allianceRole.id);
+
+        const text = `${allianceRole.members.size} member${allianceRole.members.size !== 1 ? "s" : ""}, from ${allianceObj.factions.length} faction${allianceObj.factions.length !== 1 ? "s" : ""}: ${allianceObj.factions.map(faction => factionRoles.find(role => role.id === faction).name).join(", ")}`;
+        fields.push({name: allianceRole.name, value: text});
+    }
+    embed.addFields(fields);
+    await interaction.reply({embeds: [embed]});
 }
 
 // utility
