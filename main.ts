@@ -24,7 +24,7 @@ import {
     CacheTypeReducer,
     GuildTextBasedChannel,
     GuildChannel,
-    CategoryChannel
+    CategoryChannel, HexColorString
 } from "discord.js";
 
 import {SlashCommandBuilder} from "@discordjs/builders";
@@ -41,6 +41,7 @@ const client = new Client({
 const specialRoles = process.env.SPECIAL_ROLES.split(",");
 
 import commands from "./commands";
+import colorsMap from "./colorsMap";
 
 const rest = new REST({version: '10'}).setToken(process.env.DISCORD_TOKEN);
 
@@ -99,6 +100,8 @@ client.on('interactionCreate', async interaction => {
             return await commandFactionAdminsUpdate(interaction, false);
         case "faction join":
             return await commandFactionJoin(interaction);
+        case "faction leave":
+            return await commandFactionLeave(interaction);
         case "faction delete":
             return await commandFactionDelete(interaction);
         case "alliance create":
@@ -117,7 +120,6 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.reply("???");
 });
-
 
 // command
 
@@ -149,11 +151,11 @@ async function commandFactionCreate(interaction: ChatInputCommandInteraction) {
     }
 
     const colorString = options.getString("color");
+    let colorHex:HexColorString;
 
-    // @ts-ignore - color is checked
-    const color:ColorResolvable = Object.keys(Colors).find(key => key.toLowerCase() === colorString.toLowerCase());
-
-    if (!color) {
+    if(colorsMap.has(colorString)) colorHex = colorsMap.get(colorString.toLowerCase().replaceAll(" ", ""));
+    else if(colorString.match(/^#[0-9a-f]{6}$/i)) colorHex = colorString as HexColorString;
+    else{
         await interaction.reply({content: "Invalid color!", ephemeral: true});
         return;
     }
@@ -162,7 +164,7 @@ async function commandFactionCreate(interaction: ChatInputCommandInteraction) {
     try {
         role = await interaction.guild.roles.create({
             name: factionName,
-            color,
+            color: colorHex,
             reason: "Faction created by " + interaction.user.tag,
             hoist: true
         });
@@ -358,6 +360,11 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
         return;
     }
 
+    const factionAlliances = config.alliances.filter(alliance => alliance.factions.includes(factionRole.id));
+    for(const alliance of factionAlliances) {
+        await member.roles.add(alliance.role);
+    }
+
     const sent = await politicsChannel.send(escapeMarkdown(`${member.displayName} (${member.user.tag}) wants to join ${factionName}!\nIf you are an admin of ${factionName}, click the checkmark to accept.`));
     await sent.react("✅");
     await interaction.reply(`Sent join request in <#${politicsChannel.id}>`);
@@ -367,7 +374,6 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
         if (!isAdmin) return;
         if (reaction.emoji.name === "✅") {
             await makeMemberFactionMember(interaction.guild, member, factionRole);
-            await sent.delete();
 
             await sent.reactions.removeAll();
             await sent.edit({content: escapeMarkdown(`${member.displayName} (${member.user.tag}) has joined ${factionName}!`)});
@@ -417,7 +423,48 @@ async function commandFactionDelete(interaction: ChatInputCommandInteraction) {
     await deleteChannelsInCategory(category);
     await category.delete();
     await factionRole.delete();
+    await member.roles.remove(await getFounderRole(interaction.guild));
     await interaction.reply(`Successfully deleted faction ${factionRole.name}!`);
+}
+
+async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
+    const member = interaction.member as GuildMember;
+
+    const factionRole = await getMemberFactionRole(interaction.guild, member);
+    if (!factionRole) {
+        await interaction.reply({content: "You are not in a faction!", ephemeral: true});
+        return;
+    }
+
+    if (await memberIsFounder(interaction.guild, member)) {
+        await interaction.reply({content: "You are the founder of a faction! Use /faction delete instead.", ephemeral: true});
+        return;
+    }
+
+    let adminChannel:GuildChannel;
+    try {
+        adminChannel = await getFactionChannel(interaction.guild, factionRole.name, channelTypes.adminChannel);
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({content: "Error getting admin channel!", ephemeral: true});
+        return;
+    }
+
+    try {
+        await makeMemberNotFactionAdmin(interaction.guild, member, adminChannel);
+    } catch (e) {
+        console.error(e);
+        await interaction.reply({content: "Error removing permissions!", ephemeral: true});
+        return;
+    }
+
+    const factionAlliances = config.alliances.filter(alliance => alliance.factions.includes(factionRole.id));
+    for(const alliance of factionAlliances) {
+        await member.roles.remove(alliance.role);
+    }
+
+    await member.roles.remove(factionRole);
+    await interaction.reply(`Successfully left faction ${factionRole.name}!`);
 }
 
 async function getFoundingFactionRoleForAlliance(interaction: ChatInputCommandInteraction): Promise<Role> {
@@ -428,7 +475,13 @@ async function getFoundingFactionRoleForAlliance(interaction: ChatInputCommandIn
         return;
     }
 
-    const memberFactionRole = await getMemberFactionRole(interaction.guild, member);
+    let memberFactionRole;
+    try {
+        memberFactionRole = await getMemberFactionRole(interaction.guild, member);
+    }catch(e){
+        await interaction.reply({ content: "You are not in a faction!", ephemeral: true });
+        return;
+    }
     if(!memberFactionRole){
         await interaction.reply({content: "You are not in a faction!", ephemeral: true});
         return;
@@ -650,10 +703,12 @@ async function commandAllianceDelete(interaction: ChatInputCommandInteraction){
 
     const found = config.alliances.find(alliance => alliance.role === allianceRole.id && alliance.roleOfFoundingFaction === factionRole.id);
     if(!found){
-        await interaction.reply({content: "Error getting alliance object!", ephemeral: true});
+        await interaction.reply({content: "Invalid alliance, you must be the founder!", ephemeral: true});
         return;
     }
     await deleteAlliance(interaction.guild, found);
+
+    await interaction.reply(`Alliance deleted!`);
 }
 
 // utility
