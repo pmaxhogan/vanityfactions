@@ -107,3 +107,5 @@ dist
 *.js
 
 *.js.map
+
+config.json
