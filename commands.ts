@@ -22,14 +22,12 @@ export default [
             group.setName("set").setDescription("Set faction properties")
                 .addSubcommand((subcommand) =>
                     subcommand.setName("name").setDescription("Set the name of a faction")
-                        .addStringOption((option) => option.setName("oldname").setDescription("The old name of the faction").setRequired(true))
-                        .addStringOption((option) => option.setName("newname").setDescription("The new name of the faction").setRequired(true))
+                        .addStringOption((option) => option.setName("name").setDescription("The new name of the faction").setRequired(true))
                 )
 
                 .addSubcommand((subcommand) =>
                     subcommand.setName("color").setDescription("Set the color of a faction")
                         .addStringOption((option) => option.setName("name").setDescription("The name of the faction").setRequired(true))
-                        .addStringOption((option) => option.setName("color").setDescription("The color of the faction").setRequired(true))
                 )
 
                 .addSubcommand((subcommand) =>

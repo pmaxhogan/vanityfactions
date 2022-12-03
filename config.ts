@@ -6,7 +6,8 @@ export interface faction {
     channelCategory: Snowflake,
     [channelTypes.textChannel]: Snowflake,
     [channelTypes.voiceChannel]: Snowflake
-    [channelTypes.adminChannel]: Snowflake
+    [channelTypes.adminChannel]: Snowflake,
+    isInviteOnly: boolean,
 }
 
 export interface alliance {
