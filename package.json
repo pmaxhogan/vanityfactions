@@ -2,10 +2,11 @@
   "name": "vanityfactions",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "debug": "node --inspect index.js"
+    "start": "tsc && node --es-module-specifier-resolution=node main.js",
+    "debug": "tsc && node --inspect --es-module-specifier-resolution=node main.ts",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
@@ -21,6 +22,11 @@
     "@discordjs/builders": "^1.4.0",
     "discord.js": "^14.7.1",
     "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "jest": "^29.2.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.8.4"
   },
   "type": "module"
 }
