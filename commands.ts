@@ -57,6 +57,11 @@ export default [
         )
 
         .addSubcommand((subcommand) =>
+            subcommand.setName("kick").setDescription("Remove someone from a faction")
+                .addUserOption((option) => option.setName("name").setDescription("The user to click").setRequired(true))
+        )
+
+        .addSubcommand((subcommand) =>
             subcommand.setName("delete").setDescription("Delete your faction")
         )
 
@@ -75,4 +80,9 @@ export default [
             .addStringOption((option) => option.setName("name").setDescription("The name of the faction").setRequired(true)))
         .addSubcommand((subcommand) => subcommand.setName("leave").setDescription("Leave an alliance")
             .addStringOption((option) => option.setName("name").setDescription("The name of the faction").setRequired(true)))
+        .addSubcommand((subcommand) =>
+            subcommand.setName("kick").setDescription("Kick a faction from an alliance")
+                .addStringOption((option) => option.setName("name").setDescription("The alliance name").setRequired(true))
+                .addStringOption((option) => option.setName("faction").setDescription("The faction name").setRequired(true))
+        )
 ];
