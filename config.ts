@@ -30,13 +30,46 @@ export enum channelTypes{
     adminChannel = "adminChannel"
 }
 
-const path = "config.json";
-export async function readConfig(): Promise<Config> {
-    const text = await fs.readFile(path, "utf8");
-    return JSON.parse(text);
+type isoDate = string;
+
+interface configObject{
+    current: Config,
+    historic: [key: isoDate, value: Config][]
 }
 
-export async function writeConfig(config: Config): Promise<void> {
-    const text = JSON.stringify(config);
+const defaultConfig:configObject = {current: {factions: [], alliances: []}, historic: []};
+
+let cachedConfig: configObject = null;
+
+const path = "config.json";
+export async function readConfig(): Promise<Config> {
+    let text;
+    try {
+        text = await fs.readFile(path, "utf8");
+    } catch (e) {
+        if(e.code === "ENOENT") {
+            await fs.writeFile(path, JSON.stringify(defaultConfig));
+            return await readConfig();
+        }
+        throw e;
+    }
+    const parsed = JSON.parse(text) as configObject;
+    cachedConfig = parsed;
+    return parsed.current;
+}
+
+function deepClone(obj: any): any {
+    return JSON.parse(JSON.stringify(obj));
+}
+
+export async function writeConfig(newConfig: Config): Promise<void> {
+    if(!cachedConfig){
+        await readConfig();
+    }
+
+    cachedConfig.historic.push([new Date().toISOString(), deepClone(newConfig)]);
+    cachedConfig.current = deepClone(newConfig);
+
+    const text = JSON.stringify(cachedConfig);
     await fs.writeFile(path, text, "utf8");
 }
