@@ -16,8 +16,7 @@ import {
     PermissionFlagsBits,
     REST,
     Role,
-    Routes,
-    TextChannel
+    Routes
 } from "discord.js";
 import {alliance, channelTypes, faction, readConfig, writeConfig} from "./config";
 
@@ -77,54 +76,63 @@ const nameToChannelName = (name: string) : string => name.toLowerCase().replace(
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
+    if(interaction.channelId !== process.env.BOT_COMMANDS_CHANNEL) {
+        await interaction.reply({content:`Please use the <#${process.env.BOT_COMMANDS_CHANNEL}> channel!`, ephemeral: true, allowedMentions: {parse: []}});
+        return;
+    }
+
     // get parameters
     const {commandName, options} = interaction;
     const fullCommand = commandName + " " + (options.getSubcommandGroup() ? options.getSubcommandGroup() + " " : "") + options.getSubcommand();
 
-    switch (fullCommand) {
-        case "faction create":
-            return await commandFactionCreate(interaction);
+    try {
 
-        case "faction admins add":
-            return await commandFactionAdminsUpdate(interaction, true);
-        case "faction admins remove":
-            return await commandFactionAdminsUpdate(interaction, false);
-        case "faction join":
-            return await commandFactionJoin(interaction);
-        case "faction leave":
-            return await commandFactionLeave(interaction);
-        case "faction delete":
-            return await commandFactionDelete(interaction);
-        case "faction set name":
-            return await commandFactionSetName(interaction);
-        case "faction set color":
-            return await commandFactionSetColor(interaction);
-        case "faction set invite":
-            return await commandFactionSetInvite(interaction);
-        case "faction kick":
-            return await commandFactionKick(interaction);
-        case "faction list":
-            return await commandFactionInfo(interaction);
+        switch (fullCommand) {
+            case "faction create":
+                return await commandFactionCreate(interaction);
 
-        case "alliance create":
-            return await commandAllianceCreate(interaction);
-        case "alliance delete":
-            return await commandAllianceDelete(interaction);
-        case "alliance leave":
-            return await commandAllianceLeave(interaction);
-        case "alliance join":
-            return await commandAllianceJoin(interaction);
-        case "alliance kick":
-            return await commandAllianceKick(interaction);
-        case "alliance list":
-            return await commandAllianceList(interaction);
-        default:
-            console.log("Unknown command " + fullCommand);
-            await interaction.reply({content: "Unknown command!", ephemeral: true});
+            case "faction admins add":
+                return await commandFactionAdminsUpdate(interaction, true);
+            case "faction admins remove":
+                return await commandFactionAdminsUpdate(interaction, false);
+            case "faction join":
+                return await commandFactionJoin(interaction);
+            case "faction leave":
+                return await commandFactionLeave(interaction);
+            case "faction delete":
+                return await commandFactionDelete(interaction);
+            case "faction set name":
+                return await commandFactionSetName(interaction);
+            case "faction set color":
+                return await commandFactionSetColor(interaction);
+            case "faction set invite":
+                return await commandFactionSetInvite(interaction);
+            case "faction kick":
+                return await commandFactionKick(interaction);
+            case "faction list":
+                return await commandFactionInfo(interaction);
 
+            case "alliance create":
+                return await commandAllianceCreate(interaction);
+            case "alliance delete":
+                return await commandAllianceDelete(interaction);
+            case "alliance leave":
+                return await commandAllianceLeave(interaction);
+            case "alliance join":
+                return await commandAllianceJoin(interaction);
+            case "alliance kick":
+                return await commandAllianceKick(interaction);
+            case "alliance list":
+                return await commandAllianceList(interaction);
+            default:
+                console.log("Unknown command " + fullCommand);
+                await interaction.reply({content: "Unknown command!", ephemeral: true});
+
+        }
+    }catch (e) {
+        console.error(e);
+        await interaction.reply({content: "An error occurred :("});
     }
-
-    await interaction.reply("???");
 });
 
 async function checkIfFactionNameUnique(guild: Guild, factionName: string) : Promise<boolean> {
@@ -253,7 +261,20 @@ async function commandFactionCreate(interaction: ChatInputCommandInteraction) {
         await interaction.reply({content: "Error assigning permissions!", ephemeral: true});
     }
 
-    await interaction.reply({content: "Faction created!", ephemeral: true});
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
+        await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
+        return;
+    }
+
+    await interaction.reply({content: `Created faction ${role.name}`});
+    await politicsChannel.send({
+        content: `Faction <@&${role.id}> created by <@${member.user.id}>`,
+        allowedMentions: {
+            roles: [role.id],
+            users: [member.user.id]
+        }
+    });
 }
 
 async function commandFactionAdminsUpdate(interaction: ChatInputCommandInteraction, add: boolean) {
@@ -309,7 +330,7 @@ async function commandFactionAdminsUpdate(interaction: ChatInputCommandInteracti
         return;
     }
 
-    await interaction.reply(`Successfully ${add ? "added" : "removed"} ${targetMember.displayName} as a faction admin.`);
+    await interaction.reply(`Successfully ${add ? "added" : "removed"} <@${targetMember.id}> as a faction admin.`);
 }
 
 async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
@@ -351,11 +372,8 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
         return;
     }
 
-    let politicsChannel:TextChannel;
-    try {
-        politicsChannel = await getPoliticsChannel(interaction.guild);
-    } catch (e) {
-        console.error(e);
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
         await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
         return;
     }
@@ -367,7 +385,12 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
 
     const found = config.factions.find(faction => faction.role === factionRole.id);
     if(found.isInviteOnly){
-        const sent = await politicsChannel.send(escapeMarkdown(`${member.displayName} (${member.user.tag}) wants to join ${factionName}!\nIf you are an admin of ${factionName}, click the checkmark to accept.`));
+        const sent = await politicsChannel.send({
+            content: escapeMarkdown(`${member.displayName} (${member.user.tag}) wants to join ${factionName}!\nIf you are an admin of ${factionName}, click the checkmark to accept.`),
+            allowedMentions: {
+                users: [member.user.id]
+            }
+        });
         await sent.react("✅");
         await interaction.reply(`Sent join request in <#${politicsChannel.id}>`);
         sent.createReactionCollector({}).on("collect", async (reaction, user) => {
@@ -382,6 +405,13 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
             }
         });
     }else{
+        await politicsChannel.send({
+            content: escapeMarkdown(`<@${member.user.id}> has joined ${factionName}!`),
+            allowedMentions: {
+                users: [member.user.id]
+            }
+        });
+
         await makeMemberFactionMember(interaction.guild, member, factionRole);
         await interaction.reply(`Successfully joined ${factionName}!`);
     }
@@ -406,6 +436,12 @@ async function commandFactionDelete(interaction: ChatInputCommandInteraction) {
         return;
     }
 
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
+        await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
+        return;
+    }
+
     const factionObj = config.factions.find(faction => faction.role === factionRole.id);
     if (!factionObj) {
         await interaction.reply({content: "Error getting faction object!", ephemeral: true});
@@ -424,6 +460,13 @@ async function commandFactionDelete(interaction: ChatInputCommandInteraction) {
     await factionRole.delete();
     await member.roles.remove(await getFounderRole(interaction.guild));
     await interaction.reply(`Successfully deleted faction ${factionRole.name}!`);
+
+    await politicsChannel.send({
+        content: escapeMarkdown(`<@${member.user.id}> has disbanded ${factionRole.name}!`),
+        allowedMentions: {
+            users: [member.user.id]
+        }
+    });
 }
 
 async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
@@ -440,8 +483,21 @@ async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
         return;
     }
 
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
+        await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
+        return;
+    }
+
     await removeMemberFromFaction(interaction.guild, member, factionRole, interaction);
     await interaction.reply(`Successfully left faction ${factionRole.name}!`);
+
+    await politicsChannel.send({
+        content: escapeMarkdown(`<@${member.user.id}> has left ${factionRole.name}!`),
+        allowedMentions: {
+            users: [member.user.id]
+        }
+    });
 }
 
 async function commandFactionInfo(interaction: ChatInputCommandInteraction){
@@ -459,7 +515,7 @@ async function commandFactionInfo(interaction: ChatInputCommandInteraction){
         }
 
         const embed = new EmbedBuilder();
-        embed.setTitle("Factions");
+        embed.setTitle(role.name);
         embed.setDescription(`${role.name}: ${role.members.size} member${role.members.size !== 1 ? "s" : ""}, ${faction.isInviteOnly ? "request to join" : "open invite"}`);
         embed.setColor("Blue");
         const fields = [];
@@ -573,18 +629,17 @@ async function commandAllianceCreate(interaction: ChatInputCommandInteraction){
     });
     await writeConfig(config);
 
-    let politicsChannel:TextChannel;
-    try {
-        politicsChannel = await getPoliticsChannel(interaction.guild);
-    } catch (e) {
-        console.error(e);
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
         await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
         return;
     }
+
     await politicsChannel.send({
-        content: escapeMarkdown(`${member.displayName} (${member.user.tag}) created an alliance <@&${allianceRole.id}>!`),
+        content: escapeMarkdown(`Alliance <@&${allianceRole.id}> created by <@${member.user.id}>!`),
         allowedMentions: {
-            roles: [allianceRole.id]
+            roles: [allianceRole.id],
+            users: [member.user.id]
         }
     });
     await interaction.reply(`Alliance created!`);
@@ -601,17 +656,17 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
     }
     console.log(memberFoundingFactionRole.id, found.factions);
 
-    let politicsChannel:TextChannel;
-    try {
-        politicsChannel = await getPoliticsChannel(interaction.guild);
-    }
-    catch (e) {
-        console.error(e);
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
         await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
         return;
     }
+
     const sent = await politicsChannel.send({
-        content: escapeMarkdown(`<@${member.id}> wants to join ${allianceRole.name}! If you are the founder of ${allianceRole.name}, react with ✅ to accept.`),
+        content: escapeMarkdown(`<@${member.user.id}> wants to join ${allianceRole.name}! If you are the founder of ${allianceRole.name}, react with ✅ to accept.`),
+        allowedMentions: {
+            users: [member.user.id]
+        }
     });
     await sent.react("✅");
     await interaction.reply(`Sent join request in <#${politicsChannel.id}>!`);
@@ -644,6 +699,7 @@ async function commandAllianceLeave(interaction: ChatInputCommandInteraction){
     if(!resp) return;
     const [memberFoundingFactionRole, allianceRole, found] = resp;
 
+
     if(!found || !found.factions.includes(memberFoundingFactionRole.id)){
         await interaction.reply({content: "Can't leave that alliance!", ephemeral: true});
         return;
@@ -651,12 +707,8 @@ async function commandAllianceLeave(interaction: ChatInputCommandInteraction){
     found.factions = found.factions.filter(faction => faction !== memberFoundingFactionRole.id);
     await writeConfig(config);
 
-    let politicsChannel:TextChannel;
-    try {
-        politicsChannel = await getPoliticsChannel(interaction.guild);
-    }
-    catch (e) {
-        console.error(e);
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
         await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
         return;
     }
@@ -677,7 +729,13 @@ async function commandAllianceLeave(interaction: ChatInputCommandInteraction){
 async function commandAllianceDelete(interaction: ChatInputCommandInteraction){
     const resp = await factionFounderInAllianceCommand(interaction, true);
     if(!resp) return;
-    const [, , found] = resp;
+    const [, allianceRole, found, member] = resp;
+
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
+        await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
+        return;
+    }
 
     if(!found){
         await interaction.reply({content: "Invalid alliance, you must be the founder!", ephemeral: true});
@@ -685,7 +743,14 @@ async function commandAllianceDelete(interaction: ChatInputCommandInteraction){
     }
     await deleteAlliance(interaction.guild, found);
 
-    await interaction.reply(`Alliance deleted!`);
+    await interaction.reply(`Alliance ${allianceRole.name} deleted!`);
+
+    await politicsChannel.send({
+        content: `Alliance ${allianceRole.name} deleted by <@&${member.user.id}>!`,
+        allowedMentions: {
+            users: [member.user.id]
+        }
+    });
 }
 
 async function commandFactionSetName(interaction: ChatInputCommandInteraction){
@@ -740,7 +805,7 @@ async function commandFactionSetInvite(interaction: ChatInputCommandInteraction)
 async function commandAllianceKick(interaction: ChatInputCommandInteraction){
     const resp = await factionFounderInAllianceCommand(interaction, true);
     if(!resp) return;
-    const [memberFoundingFactionRole, allianceRole, found] = resp;
+    const [memberFoundingFactionRole, allianceRole, found, member] = resp;
     const factionName = interaction.options.getString("faction");
 
     if(!found || !found.factions.includes(memberFoundingFactionRole.id)){
@@ -759,6 +824,12 @@ async function commandAllianceKick(interaction: ChatInputCommandInteraction){
         return;
     }
 
+    let politicsChannel = await getPoliticsChannel(interaction.guild);
+    if(!politicsChannel) {
+        await interaction.reply({content: "Error getting politics channel!", ephemeral: true});
+        return;
+    }
+
     found.factions = found.factions.filter(faction => faction !== factionRole.id);
     await writeConfig(config);
 
@@ -767,6 +838,13 @@ async function commandAllianceKick(interaction: ChatInputCommandInteraction){
     }
 
     await interaction.reply(`Kicked faction ${factionRole.name} from alliance ${allianceRole.name}!`);
+    await politicsChannel.send({
+        content: escapeMarkdown(`<@&${factionRole.id}> was kicked from the alliance <@&${allianceRole.id}> by <@${member.user.id}>!`),
+        allowedMentions: {
+            roles: [allianceRole.id,  factionRole.id],
+            users: [member.user.id]
+        }
+    });
 }
 
 async function commandAllianceList(interaction: ChatInputCommandInteraction){
@@ -815,7 +893,7 @@ async function factionAdminOnlyCommand(interaction: ChatInputCommandInteraction)
     const member = interaction.member as GuildMember;
     const factionRole = await getMemberFactionRole(interaction.guild, member);
     if(!factionRole){
-        await interaction.reply({content: "You are not in a faction!"});
+        await interaction.reply({content: "You are not in a faction!", ephemeral: true});
         return;
     }
 
@@ -828,7 +906,7 @@ async function factionAdminOnlyCommand(interaction: ChatInputCommandInteraction)
         return;
     }
     if(!await memberIsFactionAdmin(interaction.guild, member, adminChannel)){
-        await interaction.reply({content: "You need to be an admin!"});
+        await interaction.reply({content: "You need to be an admin!", ephemeral: true});
         return;
     }
 
@@ -1007,7 +1085,7 @@ async function getPoliticsChannel(guild: Guild) {
     const id = process.env.POLITICS_CHANNEL;
     const found = await guild.channels.fetch(id);
     if (!found || found.type !== ChannelType.GuildText) {
-        throw new Error("Channel not found!");
+        return null;
     }
     return found;
 }
