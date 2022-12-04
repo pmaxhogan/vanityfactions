@@ -1220,7 +1220,7 @@ async function getFactionChannel(guild: Guild, roleName: string, channelType: ch
 async function getPoliticsChannel(guild: Guild) {
     const id = process.env.POLITICS_CHANNEL;
     const found = await guild.channels.fetch(id);
-    if (!found || found.type !== ChannelType.GuildText) {
+    if (!found || (found.type !== ChannelType.GuildAnnouncement && found.type !== ChannelType.GuildText)) {
         return null;
     }
     return found;
