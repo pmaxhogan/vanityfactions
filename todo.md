@@ -4,6 +4,7 @@
 - [ ] go and comment the code
 - [x] make all replies not ephemeral
 - [x] fix politics channel
+- [ ] list faction members in /faction list
 - [ ] wipe & test everything
 - [ ] store backup on every writeData() with a timestamp for future use
 

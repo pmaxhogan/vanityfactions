@@ -35,7 +35,7 @@ export default [
                         .addStringOption((option) => option.setName("status").setDescription("The invite status of the faction").setRequired(true).addChoices({
                             name: "open",
                             value: "open"
-                        }, {name: "admin-only", value: "admin-only"}))
+                        }, {name: "admin-approves", value: "admin-approves"}))
                 )
         )
 
@@ -70,6 +70,10 @@ export default [
         )
 
         .addSubcommand((subcommand) =>
+            subcommand.setName("help").setDescription("Command help")
+        )
+
+        .addSubcommand((subcommand) =>
             subcommand.setName("list").setDescription("List factions")
                 .addRoleOption((option) => option.setName("name").setDescription("The name of the faction"))
         ).toJSON(),
@@ -91,5 +95,8 @@ export default [
                 .addStringOption((option) => option.setName("faction").setDescription("The faction name").setRequired(true))
         )
         .addSubcommand((subcommand) => subcommand.setName("list").setDescription("List alliances"))
+        .addSubcommand((subcommand) =>
+            subcommand.setName("help").setDescription("Command help")
+        )
         .toJSON()
 ];

@@ -22,6 +22,7 @@ import {alliance, channelTypes, faction, readConfig, writeConfig} from "./config
 
 import commands from "./commands";
 import colorsMap from "./colorsMap";
+import helpDescription from './helpDescription';
 
 dotenv.config()
 
@@ -103,6 +104,8 @@ client.on('interactionCreate', async interaction => {
                 return await commandFactionLeave(interaction);
             case "faction delete":
                 return await commandFactionDelete(interaction);
+            case "faction help":
+                return await commandFactionOrAllianceHelp(interaction);
             case "faction set name":
                 return await commandFactionSetName(interaction);
             case "faction set color":
@@ -114,6 +117,8 @@ client.on('interactionCreate', async interaction => {
             case "faction list":
                 return await commandFactionInfo(interaction);
 
+            case "alliance help":
+                return await commandFactionOrAllianceHelp(interaction);
             case "alliance create":
                 return await commandAllianceCreate(interaction);
             case "alliance delete":
@@ -548,7 +553,7 @@ async function commandFactionInfo(interaction: ChatInputCommandInteraction){
         const roles = await getFactionRoles(interaction.guild);
         const embed = new EmbedBuilder();
         embed.setTitle("Factions");
-        embed.setDescription("Use /faction info <name> to get more info about a faction.");
+        embed.setDescription("Use /faction list <name> to get more info about a faction.");
         embed.setColor("Blue");
         const fields = [];
         if(roles.length > 0) {
@@ -824,7 +829,7 @@ async function commandFactionSetInvite(interaction: ChatInputCommandInteraction)
 
     const status = interaction.options.getString("status");
     const found = config.factions.find(faction => faction.role === factionRole.id);
-    found.isInviteOnly = status === "admin-only";
+    found.isInviteOnly = status === "admin-approves";
     await writeConfig(config);
 
     await interaction.editReply(`Faction invite status set to ${status}!`);
@@ -894,6 +899,15 @@ async function commandAllianceList(interaction: ChatInputCommandInteraction){
         fields.push({name: "No alliances", value: "There are no alliances!"});
     }
     embed.addFields(fields);
+    await interaction.editReply({embeds: [embed]});
+}
+
+async function commandFactionOrAllianceHelp(interaction: ChatInputCommandInteraction){
+    const embed = new EmbedBuilder();
+    embed.setTitle("Faction Help");
+    embed.setColor("Blue");
+    const commands = helpDescription.trim();
+    embed.setFields(commands.split("\n").filter(Boolean).map(line => ({name: "`" + line.split("\t")[0] + "`", value: line.split("\t")[1]})));
     await interaction.editReply({embeds: [embed]});
 }
 
