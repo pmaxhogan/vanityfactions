@@ -487,6 +487,17 @@ async function commandFactionDelete(interaction: ChatInputCommandInteraction) {
         await deleteAlliance(interaction.guild, alliance);
     }
 
+    await interaction.guild.members.fetch();
+    const factionAlliances = config.alliances.filter(alliance => alliance.factions.includes(factionRole.id));
+    for (const alliance of factionAlliances) {
+        const allianceRole = await interaction.guild.roles.fetch(alliance.role);
+        for(const [_, factionMember] of factionRole.members){
+            await factionMember.roles.remove(allianceRole);
+        }
+    }
+    config.alliances.forEach(alliance => alliance.factions = alliance.factions.filter(faction => faction !== factionRole.id));
+    await writeConfig(config);
+
     await deleteChannelsInCategory(category);
     await category.delete();
     await factionRole.delete();
@@ -954,7 +965,7 @@ async function commandAllianceList(interaction: ChatInputCommandInteraction){
         for(const allianceRole of alliances){
             const allianceObj:alliance = config.alliances.find(allianceObj => allianceObj.role === allianceRole.id);
 
-            const text = `${allianceRole.members.size} member${allianceRole.members.size !== 1 ? "s" : ""}, from ${allianceObj.factions.length} faction${allianceObj.factions.length !== 1 ? "s" : ""}: ${allianceObj.factions.map(faction => factionRoles.find(role => role.id === faction).name).join(", ")}`;
+            const text = `${allianceRole.members.size} member${allianceRole.members.size !== 1 ? "s" : ""}, from ${allianceObj.factions.length} faction${allianceObj.factions.length !== 1 ? "s" : ""}: ${allianceObj.factions.map(faction => factionRoles.find(role => role.id === faction)?.name || "unknown").join(", ")}`;
             fields.push({name: allianceRole.name, value: text});
         }
     } else {
