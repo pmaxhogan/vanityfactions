@@ -86,7 +86,7 @@ const getAllianceRoles = async (guild: Guild) : Promise<Role[]> => {
 
 const invalidNames = process.env.INVALID_NAMES.split(",");
 
-const nameValid = (name: string) : boolean => name && name.length > 0 && name.length < 32 && name === name.trim() && name === name.replaceAll("  ", " ") && Boolean(name.match(/^[a-z0-9_'"#: -]+$/i)) && !invalidNames.includes(name.toLowerCase());
+const nameValid = (name: string) : boolean => name && name.length > 0 && name.length < 32 && name === name.trim() && name === name.replaceAll("  ", " ") && Boolean(name.match(/^[a-z0-9_'"#: .!?()\[\]<>-]+$/i)) && !invalidNames.includes(name.toLowerCase());
 const nameToChannelName = (name: string) : string => name.toLowerCase().replace(/ /g, "-");
 
 client.on('interactionCreate', async interaction => {
