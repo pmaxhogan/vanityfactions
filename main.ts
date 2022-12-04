@@ -29,7 +29,14 @@ dotenv.config()
 const config = await readConfig();
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildEmojisAndStickers],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildEmojisAndStickers,
+    ],
     allowedMentions: {parse: []}
 });
 
@@ -60,9 +67,15 @@ function mapToArray<T>(map: hasForEach<T>) : T[] {
 }
 
 const getFactionRoles = async (guild: Guild) : Promise<Role[]> => {
-    const roles = config.factions.map(faction => faction.role);
+    const configRoles = config.factions.map(faction => faction.role);
     const guildRoles = await guild.roles.fetch();
-    return mapToArray(guildRoles.filter(role => roles.includes(role.id)));
+    const roles = mapToArray(guildRoles.filter(role => configRoles.includes(role.id)));
+    const rolesResults = [];
+    for (const role of roles) {
+        rolesResults.push(guild.roles.fetch(role.id));
+    }
+
+    return Promise.all(rolesResults);
 };
 
 const getAllianceRoles = async (guild: Guild) : Promise<Role[]> => {
@@ -73,7 +86,7 @@ const getAllianceRoles = async (guild: Guild) : Promise<Role[]> => {
 
 const invalidNames = process.env.INVALID_NAMES.split(",");
 
-const nameValid = (name: string) : boolean => name && name.length > 0 && name.length < 32 && name === name.trim() && Boolean(name.match(/^[a-z0-9_'"#: -]+$/i)) && !invalidNames.includes(name.toLowerCase());
+const nameValid = (name: string) : boolean => name && name.length > 0 && name.length < 32 && name === name.trim() && name === name.replaceAll("  ", " ") && Boolean(name.match(/^[a-z0-9_'"#: -]+$/i)) && !invalidNames.includes(name.toLowerCase());
 const nameToChannelName = (name: string) : string => name.toLowerCase().replace(/ /g, "-");
 
 client.on('interactionCreate', async interaction => {
@@ -86,9 +99,12 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.deferReply();
 
+
     // get parameters
     const {commandName, options} = interaction;
     const fullCommand = commandName + " " + (options.getSubcommandGroup() ? options.getSubcommandGroup() + " " : "") + options.getSubcommand();
+
+    console.log(`Received interaction /${fullCommand} from ${interaction.user.tag} with options ${JSON.stringify(options.data)}`);
 
     try {
         switch (fullCommand) {
@@ -305,7 +321,6 @@ async function commandFactionAdminsUpdate(interaction: ChatInputCommandInteracti
         return;
     }
     if (!adminFactionRole?.id || !targetFactionRole?.id || adminFactionRole.id !== targetFactionRole.id) {
-        console.log(adminFactionRole?.id, targetFactionRole?.id);
         await interaction.editReply({content: "That user is not in your faction."});
         return;
     }
@@ -402,7 +417,7 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
         await sent.react("✅");
         await interaction.editReply(`Sent join request in <#${politicsChannel.id}>`);
         sent.createReactionCollector({}).on("collect", async (reaction, user) => {
-            const reactionMember = reaction.message.guild?.members.cache.get(user.id);
+            const reactionMember = await reaction.message.guild?.members.fetch(user.id);
             const isAdmin = await memberIsFactionAdmin(interaction.guild, reactionMember, adminChannel);
             if (!isAdmin) return;
             if (reaction.emoji.name === "✅") {
@@ -511,6 +526,8 @@ async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
 
 async function commandFactionInfo(interaction: ChatInputCommandInteraction){
     const name = interaction.options.getRole("name")?.name;
+
+    await interaction.guild.members.fetch();
     if(name){
         const role = await getFactionRole(interaction.guild, name);
         if(!role){
@@ -606,6 +623,7 @@ async function commandAllianceCreate(interaction: ChatInputCommandInteraction){
         return;
     }
 
+    await interaction.guild.members.fetch();
     const foundedAlliances = config.alliances.filter(alliance => alliance.roleOfFoundingFaction === memberFoundingFactionRole.id);
     if (foundedAlliances.length > memberFoundingFactionRole.members.size){
         await interaction.editReply({content: "You have already founded too many alliances!"});
@@ -648,6 +666,7 @@ async function commandAllianceCreate(interaction: ChatInputCommandInteraction){
         name: nameToChannelName(allianceName) + "-vc",
     });
 
+    await interaction.guild.members.fetch();
     // assign roles to all members of the faction
     const factionMembers = memberFoundingFactionRole.members;
     for (const [_, member] of factionMembers) {
@@ -689,7 +708,6 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
         await interaction.editReply({content: "You are already in this alliance!"});
         return;
     }
-    console.log(memberFoundingFactionRole.id, found.factions);
 
     let politicsChannel = await getPoliticsChannel(interaction.guild);
     if(!politicsChannel) {
@@ -706,6 +724,7 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
     await sent.react("✅");
     await interaction.editReply(`Sent join request in <#${politicsChannel.id}>!`);
     sent.createReactionCollector({}).on("collect", async (reaction, user) => {
+        await interaction.guild.members.fetch();
         const reactionMember = reaction.message.guild?.members.cache.get(user.id);
         const isFounder = await memberIsFounder(reaction.message.guild, reactionMember);
         if (!isFounder) return;
@@ -715,6 +734,7 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
 
         if (reaction.emoji.name === "✅") {
             // assign roles to all members of the faction
+            await interaction.guild.members.fetch();
             const factionMembers = memberFoundingFactionRole.members;
             for (const [_, factionMember] of factionMembers) {
                 await factionMember.roles.add(allianceRole);
@@ -748,6 +768,7 @@ async function commandAllianceLeave(interaction: ChatInputCommandInteraction){
         return;
     }
 
+    await interaction.guild.members.fetch();
     for(const [_, factionMember] of memberFoundingFactionRole.members){
         await factionMember.roles.remove(allianceRole);
     }
@@ -868,6 +889,7 @@ async function commandAllianceKick(interaction: ChatInputCommandInteraction){
     found.factions = found.factions.filter(faction => faction !== factionRole.id);
     await writeConfig(config);
 
+    await interaction.guild.members.fetch();
     for(const [_, factionMember] of factionRole.members){
         await factionMember.roles.remove(allianceRole);
     }
@@ -890,6 +912,7 @@ async function commandAllianceList(interaction: ChatInputCommandInteraction){
     embed.setTitle("Alliances");
     embed.setColor("Blue");
     const fields = [];
+    await interaction.guild.members.fetch();
     if(alliances.length > 0){
         for(const allianceRole of alliances){
             const allianceObj:alliance = config.alliances.find(allianceObj => allianceObj.role === allianceRole.id);
@@ -1023,10 +1046,11 @@ async function getFoundingFactionRoleForAlliance(interaction: ChatInputCommandIn
         await interaction.editReply({content: "You need to be the founder of a faction."});
         return;
     }
-    return memberFactionRole;
+    return await interaction.guild.roles.fetch(memberFactionRole.id);
 }
 
 async function deleteChannelsInCategory(category:CategoryChannel) {
+    await category.guild.channels.fetch();
     const channels = category.children.cache;
     for (const [_, channel] of channels) {
         await channel.delete();
