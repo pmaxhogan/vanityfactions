@@ -1003,7 +1003,7 @@ async function factionFounderInAllianceCommand(interaction: ChatInputCommandInte
 }
 
 function findColor(colorString: string): HexColorString{
-    if(colorString && colorsMap.has(colorString)) return colorsMap.get(colorString.toLowerCase().replaceAll(" ", ""));
+    if(colorString && colorsMap.has(colorString.toLowerCase().replaceAll(" ", ""))) return colorsMap.get(colorString.toLowerCase().replaceAll(" ", ""));
     else if(colorString && colorString.match(/^#[0-9a-f]{6}$/i)) return colorString as HexColorString;
     return null;
 }
