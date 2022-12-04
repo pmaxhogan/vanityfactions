@@ -409,12 +409,12 @@ async function commandFactionJoin(interaction: ChatInputCommandInteraction) {
                 await makeMemberFactionMember(interaction.guild, member, factionRole);
 
                 await sent.reactions.removeAll();
-                await sent.edit({content: escapeMarkdown(`${member.displayName} (${member.user.tag}) has joined ${factionName}!`)});
+                await sent.edit({content: escapeMarkdown(`"<@${member.user.id}>" has joined "${factionRole.name}"!`)});
             }
         });
     }else{
         await politicsChannel.send({
-            content: escapeMarkdown(`"<@${member.user.id}>" has joined "${factionName}"!`),
+            content: escapeMarkdown(`"<@${member.user.id}>" has joined "${factionRole.name}"!`),
             allowedMentions: {
                 users: [member.user.id]
             }
@@ -497,7 +497,8 @@ async function commandFactionLeave(interaction: ChatInputCommandInteraction) {
         return;
     }
 
-    await removeMemberFromFaction(interaction.guild, member, factionRole, interaction);
+    const result = await removeMemberFromFaction(interaction.guild, member, factionRole, interaction);
+    if(!result) return;
     await interaction.editReply(`Successfully left faction ${factionRole.name}!`);
 
     await politicsChannel.send({
@@ -582,7 +583,8 @@ async function commandFactionKick(interaction: ChatInputCommandInteraction){
     const [_, factionRole] = resp;
 
     const member = interaction.options.getMember("name") as GuildMember;
-    await removeMemberFromFaction(interaction.guild, member, factionRole, interaction);
+    const result = await removeMemberFromFaction(interaction.guild, member, factionRole, interaction);
+    if(!result) return;
 
     await interaction.editReply(`Successfully kicked ${member.displayName} from ${factionRole.name}!`);
 }
@@ -696,7 +698,7 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
     }
 
     const sent = await politicsChannel.send({
-        content: escapeMarkdown(`"<@${member.user.id}>" wants to join "${allianceRole.name}"! If you are the founder of "${allianceRole.name}", react with ✅ to accept.`),
+        content: escapeMarkdown(`"<@${member.user.id}>": from <@&${memberFoundingFactionRole.id}> wants to join alliance "${allianceRole.name}"! If you are the founder of "${allianceRole.name}", react with ✅ to accept.`),
         allowedMentions: {
             users: [member.user.id]
         }
@@ -721,7 +723,7 @@ async function commandAllianceJoin(interaction: ChatInputCommandInteraction){
             found.factions.push(memberFoundingFactionRole.id);
             await writeConfig(config);
 
-            await sent.edit({content: escapeMarkdown(`<@&${memberFoundingFactionRole.id}> has joined the alliance <@&${allianceRole.id}>!`)});
+            await sent.edit({content: escapeMarkdown(`"<@&${memberFoundingFactionRole.id}>" has joined the alliance "<@&${allianceRole.id}>"!`)});
             await sent.reactions.removeAll();
         }
     });
@@ -779,7 +781,7 @@ async function commandAllianceDelete(interaction: ChatInputCommandInteraction){
     await interaction.editReply(`Alliance ${allianceRole.name} deleted!`);
 
     await politicsChannel.send({
-        content: `Alliance "${allianceRole.name}" deleted by "<@&${member.user.id}>"!`,
+        content: `Alliance "${allianceRole.name}" deleted by "<@${member.user.id}>"!`,
         allowedMentions: {
             users: [member.user.id]
         }
@@ -960,12 +962,24 @@ async function factionAdminOnlyCommand(interaction: ChatInputCommandInteraction)
 }
 
 async function removeMemberFromFaction(guild:Guild, member:GuildMember, factionRole: Role, interaction: ChatInputCommandInteraction){
+    if(await memberIsFounder(guild, member)){
+        await interaction.editReply({content: "That member cannot be removed"});
+        return;
+    }
+
     let adminChannel:GuildChannel;
     try {
         adminChannel = await getFactionChannel(guild, factionRole.name, channelTypes.adminChannel);
     } catch (e) {
         console.error(e);
         await interaction.editReply({content: "Error getting admin channel!"});
+        return;
+    }
+
+    await member.fetch();
+
+    if(!member.roles.cache.has(factionRole.id)){
+        await interaction.editReply({content: "Member not in faction!"});
         return;
     }
 
@@ -983,6 +997,7 @@ async function removeMemberFromFaction(guild:Guild, member:GuildMember, factionR
     }
 
     await member.roles.remove(factionRole);
+    return true;
 }
 
 async function getFoundingFactionRoleForAlliance(interaction: ChatInputCommandInteraction): Promise<Role> {
