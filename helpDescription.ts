@@ -4,7 +4,7 @@ export default `
 /faction list <name>\tGet details about faction <name>
 
 /faction join <name>\tJoin faction <name> (may require approval)
-/faction create <name> <color>\tCreate a faction with name <name> and color <color> (color can be a hex code like \`#FE6210\` or a color name)
+/faction create <name> <color> <emoji?>\tCreate a faction with name <name>, color <color>, and optional emoji <emoji> (color can be a hex code like \`#FE6210\` or a color name)
 /faction delete\tDelete your faction
 /faction leave\tLeave your faction (if you are not the founder)
 /faction admins add <user>\tMake <user> an admin of your faction (if you are a faction founder)

@@ -126,6 +126,8 @@ client.on('interactionCreate', async interaction => {
                 return await commandFactionSetName(interaction);
             case "faction set color":
                 return await commandFactionSetColor(interaction);
+            case "faction set emoji":
+                return await commandFactionSetEmoji(interaction);
             case "faction set invite":
                 return await commandFactionSetInvite(interaction);
             case "faction kick":
@@ -198,11 +200,19 @@ async function commandFactionCreate(interaction: ChatInputCommandInteraction) {
 
     let role;
     try {
+        const emoji = interaction.options.getString("emoji")?.trim() || null;
+
+        if(emoji && !emojiValid(emoji)){
+            await interaction.editReply({content: "Invalid emoji!"});
+            return;
+        }
+
         role = await interaction.guild.roles.create({
             name: factionName,
             color: colorHex,
             reason: "Faction created by " + interaction.user.tag,
-            hoist: true
+            hoist: true,
+            unicodeEmoji: emoji,
         });
     } catch (e) {
         console.error(e);
@@ -262,7 +272,6 @@ async function commandFactionCreate(interaction: ChatInputCommandInteraction) {
         await interaction.editReply({content: "Error creating channels!"});
         return;
     }
-
 
     config.factions.push({
         channelCategory: category.id,
@@ -843,6 +852,34 @@ async function commandFactionSetColor(interaction: ChatInputCommandInteraction){
 
     await factionRole.setColor(colorHex);
     await interaction.editReply(`Faction color set to ${color}!`);
+}
+
+const emojiValid = (emoji:string) => {
+    console.log(emoji);
+    const segmenter = new Intl.Segmenter();
+    const segments = Array.from(segmenter.segment(emoji));
+    console.log(segments.length, segments);
+    return segments.length === 1;
+}
+
+async function commandFactionSetEmoji(interaction: ChatInputCommandInteraction){
+    const resp = await factionAdminOnlyCommand(interaction);
+    if(!resp) return;
+    const [_, factionRole] = resp;
+
+    const emoji = interaction.options.getString("name").trim();
+
+    if(!emojiValid(emoji)){
+        await interaction.editReply({content: "Invalid emoji!"});
+        return;
+    }
+
+    try {
+        await factionRole.setUnicodeEmoji(emoji);
+        await interaction.editReply(`Faction emoji set to ${emoji}!`);
+    } catch (e) {
+        await interaction.editReply("Could not set emoji!");
+    }
 }
 
 async function commandFactionSetInvite(interaction: ChatInputCommandInteraction){

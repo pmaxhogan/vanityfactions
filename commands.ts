@@ -16,6 +16,7 @@ export default [
             subcommand.setName("create").setDescription("Create a faction")
                 .addStringOption((option) => option.setName("name").setDescription("The name of the faction").setRequired(true))
                 .addStringOption((option) => option.setName("color").setDescription("The color of the faction").setRequired(true))
+                .addStringOption((option) => option.setName("emoji").setDescription("The emoji of the faction").setRequired(false))
         )
 
         .addSubcommandGroup((group) =>
@@ -28,6 +29,11 @@ export default [
                 .addSubcommand((subcommand) =>
                     subcommand.setName("color").setDescription("Set the color of a faction")
                         .addStringOption((option) => option.setName("name").setDescription("The name of the faction").setRequired(true))
+                )
+
+                .addSubcommand((subcommand) =>
+                    subcommand.setName("emoji").setDescription("Set the emoji of a faction")
+                        .addStringOption((option) => option.setName("name").setDescription("The emoji").setRequired(true))
                 )
 
                 .addSubcommand((subcommand) =>
